@@ -12,7 +12,7 @@ struct HelloPingPacket {
 };
 
 struct KeyEventPacket {
-    uint8_t key = 0;
+    int32_t key = 0;
     bool pressed = false;
     bool held = false;
 };

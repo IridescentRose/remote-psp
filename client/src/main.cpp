@@ -1,7 +1,7 @@
 #include <Stardust-Celeste.hpp>
 #include <Utilities/Input.hpp>
 #include <Connection.hpp>
-#include <Utilities/Controllers/KeyboardController.hpp>
+#include <Utilities/Controllers/PSPController.hpp>
 #include <Protocol.hpp>
 
 #ifdef _WIN32
@@ -15,43 +15,67 @@ using namespace Stardust_Celeste;
 
 enum KeyState {
     Pressed,
-    Hold,
-    Released
+    Hold
+};
+
+struct KeyInfo{
+    int key = 0;
+    int held = 0;
 };
 
 class RemoteState : public Core::ApplicationState {
     public:
-        static auto KeyCrossP(std::any p) -> void {
-            auto state = std::any_cast<KeyState>(p);
-            switch(state) {
-                case Pressed:
-                    std::cout << "Pressed" << std::endl;
-                    break;
-                case Hold:
-                    std::cout << "Held" << std::endl;
-                    break;
-                case Released:
-                    std::cout << "Released" << std::endl;
-                    break;
-            }
+        static auto KeyCMD(std::any p) -> void {
+            auto state = std::any_cast<KeyInfo>(p);
+            send_key_press(state.key, true, state.held);
         }
 
-        void send_hello_ping() {
+        static void send_hello_ping() {
             auto bbuf = create_refptr<Network::ByteBuffer>(sizeof(HelloPingPacket));
             bbuf->WriteI32(rand());
             Connection::get().send(PacketID::HelloPing, bbuf);
+        }
 
-            int val;
-            bbuf->ReadI32(val);
-            printf("%X\n", val);
+        static void send_key_press(int key, bool pressed, bool held) {
+            auto bbuf = create_refptr<Network::ByteBuffer>(sizeof(KeyEventPacket));
+            bbuf->WriteI32(key);
+            bbuf->WriteI8(pressed);
+            bbuf->WriteI8(held);
+            printf("Sending key press: %d, %d, %d\n", key, pressed, held);
+            Connection::get().send(PacketID::KeyEvent, bbuf);
         }
 
         void on_start() override {
             using namespace Utilities;
-            kb = new Input::KeyboardController();
-            kb->add_command({(int)Input::Keys::X, KeyFlag::Press}, {KeyCrossP, Pressed});
-            kb->add_command({(int)Input::Keys::X, KeyFlag::Held}, {KeyCrossP, Hold});
-            Input::add_controller(kb);
+            pspc = new Input::PSPController();
+            pspc->add_command({(int)Input::PSPButtons::Circle, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Circle, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Circle, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Circle, Held}});
+            pspc->add_command({(int)Input::PSPButtons::Triangle, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Triangle, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Triangle, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Triangle, Held}});
+            pspc->add_command({(int)Input::PSPButtons::Cross, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Cross, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Cross, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Cross, Held}});
+            pspc->add_command({(int)Input::PSPButtons::Square, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Square, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Square, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Square, Held}});
+
+            pspc->add_command({(int)Input::PSPButtons::Up, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Up, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Up, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Up, Held}});
+            pspc->add_command({(int)Input::PSPButtons::Down, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Down, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Down, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Down, Held}});
+            pspc->add_command({(int)Input::PSPButtons::Left, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Left, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Left, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Left, Held}});
+            pspc->add_command({(int)Input::PSPButtons::Right, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Right, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Right, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Right, Held}});
+
+            pspc->add_command({(int)Input::PSPButtons::Select, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Select, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Select, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Select, Held}});
+            pspc->add_command({(int)Input::PSPButtons::Start, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Start, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::Start, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::Start, Held}});
+            pspc->add_command({(int)Input::PSPButtons::LTrigger, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::LTrigger, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::LTrigger, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::LTrigger, Held}});
+            pspc->add_command({(int)Input::PSPButtons::RTrigger, KeyFlag::Press}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::RTrigger, Pressed}});
+            pspc->add_command({(int)Input::PSPButtons::RTrigger, KeyFlag::Held}, {KeyCMD, KeyInfo{(int)Input::PSPButtons::RTrigger, Held}});
+
+            Input::add_controller(pspc);
 
 #if BUILD_PLAT == BUILD_PSP
             if(!Network::NetworkDriver::initGUI())
@@ -59,18 +83,25 @@ class RemoteState : public Core::ApplicationState {
 #endif
             srand(time(NULL));
 
-            Connection::get().connect("127.0.0.1", 3000);
+            std::ifstream file("ip.txt");
+            std::string ip;
+            std::getline(file, ip);
+            file.close();
+
+            Connection::get().connect(ip, 3000);
             send_hello_ping();
+
+            timer = 0.0f;
         }
 
         void on_update(Core::Application *app, double dt) override {
             timer += dt;
 
-            if(timer > 0.05) {
+            if(timer > 1.0f / 30.0f) {
                 Utilities::Input::update();
                 timer = 0;
                 counter++;
-                if(counter > 20) {
+                if(counter > 30) {
                     send_hello_ping();
                     counter = 0;
                 }
@@ -86,7 +117,7 @@ class RemoteState : public Core::ApplicationState {
         }
 
     private:
-        Utilities::Input::KeyboardController* kb;
+        Utilities::Controller* pspc;
         double timer;
         int counter = 0;
 };
