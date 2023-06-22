@@ -1,8 +1,8 @@
 #include <Stardust-Celeste.hpp>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <netdb.h>
+#include <Utilities/Input.hpp>
+#include <Connection.hpp>
+#include <Utilities/Controllers/KeyboardController.hpp>
+#include <Protocol.hpp>
 
 #ifdef _WIN32
 extern "C" {
@@ -13,43 +13,68 @@ extern "C" {
 
 using namespace Stardust_Celeste;
 
+enum KeyState {
+    Pressed,
+    Hold,
+    Released
+};
+
 class RemoteState : public Core::ApplicationState {
     public:
-        void on_start() override {
-            SC_APP_INFO("Showing main menu");
-            if(!Network::NetworkDriver::initGUI())
-                throw std::runtime_error("Invalid Network Configuration!");
-
-            std::cout << "Starting Socket" << std::endl;
-            sck = socket(AF_INET, SOCK_STREAM, 0);
-            if(sck == -1) {
-                perror("Socket");
-                throw std::runtime_error("Couldn't make socket!");
-            }
-
-            struct sockaddr_in name {};
-            name.sin_family = AF_INET;
-            name.sin_port = htons(3000);
-            name.sin_addr.s_addr = inet_addr("192.168.54.142");
-
-            std::cout << "Connecting" << std::endl;
-            if(connect(sck, (struct sockaddr*)&name, sizeof(name)) == -1) {
-                perror("Error");
-                throw std::runtime_error("Could not connect to host! (Is the server open?)");
-            }
-
-            std::cout << "Sending Message" << std::endl;
-            char message[] = "Hello, server!";
-            int message_len = strlen(message);
-
-            // Send the message
-            int bytes_sent = send(sck, message, message_len, 0);
-            if (bytes_sent == -1) {
-                perror("send");
+        static auto KeyCrossP(std::any p) -> void {
+            auto state = std::any_cast<KeyState>(p);
+            switch(state) {
+                case Pressed:
+                    std::cout << "Pressed" << std::endl;
+                    break;
+                case Hold:
+                    std::cout << "Held" << std::endl;
+                    break;
+                case Released:
+                    std::cout << "Released" << std::endl;
+                    break;
             }
         }
 
+        void send_hello_ping() {
+            auto bbuf = create_refptr<Network::ByteBuffer>(sizeof(HelloPingPacket));
+            bbuf->WriteI32(rand());
+            Connection::get().send(PacketID::HelloPing, bbuf);
+
+            int val;
+            bbuf->ReadI32(val);
+            printf("%X\n", val);
+        }
+
+        void on_start() override {
+            using namespace Utilities;
+            kb = new Input::KeyboardController();
+            kb->add_command({(int)Input::Keys::X, KeyFlag::Press}, {KeyCrossP, Pressed});
+            kb->add_command({(int)Input::Keys::X, KeyFlag::Held}, {KeyCrossP, Hold});
+            Input::add_controller(kb);
+
+#if BUILD_PLAT == BUILD_PSP
+            if(!Network::NetworkDriver::initGUI())
+                throw std::runtime_error("Invalid Network Configuration!");
+#endif
+            srand(time(NULL));
+
+            Connection::get().connect("127.0.0.1", 3000);
+            send_hello_ping();
+        }
+
         void on_update(Core::Application *app, double dt) override {
+            timer += dt;
+
+            if(timer > 0.05) {
+                Utilities::Input::update();
+                timer = 0;
+                counter++;
+                if(counter > 20) {
+                    send_hello_ping();
+                    counter = 0;
+                }
+            }
         }
 
         void on_draw(Core::Application *app, double dt) override {
@@ -60,8 +85,10 @@ class RemoteState : public Core::ApplicationState {
 
         }
 
-private:
-    int sck;
+    private:
+        Utilities::Input::KeyboardController* kb;
+        double timer;
+        int counter = 0;
 };
 
 class GameApplication : public Core::Application {
@@ -76,7 +103,7 @@ public:
         Rendering::Color color{};
         color.color = 0xFFFFFFFF;
 
-        Rendering::RenderContext::get().vsync = false;
+        Rendering::RenderContext::get().vsync = true;
         Rendering::RenderContext::get().set_color(color);
     }
 };

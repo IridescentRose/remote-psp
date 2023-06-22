@@ -3,7 +3,11 @@ project(RemotePSP)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_compile_definitions(BUILD_PLAT=2)
+if(PSP)
+    add_compile_definitions(BUILD_PLAT=2)
+else()
+    add_compile_definitions(BUILD_PLAT=1)
+endif()
 
 file(GLOB_RECURSE SRC_FILES src/*.cpp)
 file(GLOB_RECURSE INC_FILES src/*.hpp)
